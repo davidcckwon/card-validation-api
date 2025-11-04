@@ -1,0 +1,46 @@
+{
+  "name": "card-validation-api",
+  "version": "1.0.0",
+  "description": "Credit card validator API using Luhn algorithm",
+  "main": "dist/index.js",
+  "bin": {
+    "app": "bin/app.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:ci": "jest --ci --reporters=default --reporters=jest-junit",
+    "lint": "eslint .",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "bootstrap": "cdk bootstrap",
+    "deploy": "pnpm run build && pnpm run synth && cdk deploy"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/jest": "^29.5.11",
+    "@types/node": "20.11.14",
+    "@types/supertest": "^6.0.2",
+    "@typescript-eslint/eslint-plugin": "^7.1.1",
+    "@typescript-eslint/parser": "^7.1.1",
+    "aws-cdk": "^2.138.0",
+    "eslint": "^8.57.0",
+    "jest": "^29.7.0",
+    "jest-junit": "^16.0.0",
+    "supertest": "^6.3.4",
+    "ts-jest": "^29.1.2",
+    "ts-node": "^10.9.2",
+    "typescript": "~5.3.3"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.138.0",
+    "constructs": "^10.3.0",
+    "express": "^4.18.2",
+    "source-map-support": "^0.5.21"
+  },
+  "packageManager": "pnpm@10.17.1"
+}
