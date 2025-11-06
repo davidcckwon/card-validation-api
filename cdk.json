@@ -9,6 +9,7 @@
       "**/*.js",
       "tsconfig.json",
       "package*.json",
+      "yarn.lock",
       "node_modules",
       "test",
       "dist"
@@ -18,4 +19,3 @@
     "@aws-cdk/core:stackRelativeExports": true
   }
 }
-

@@ -1,35 +1,37 @@
 #!/usr/bin/env node
-import { Stack } from '../lib/stack';
-import { PRIMARY_REGION } from '../lib/constants';
+/**
+ * CDK App Entry Point
+ * 
+ * Usage:
+ *   pnpm run build && cdk deploy                 # Deploy to dev
+ *   pnpm run build && cdk deploy --context stage=prod
+ * 
+ * Prerequisites:
+ *   1. AWS credentials: aws configure
+ *   2. CDK bootstrap: cdk bootstrap
+ */
 import * as cdk from 'aws-cdk-lib';
 import 'source-map-support/register';
-
-const serviceName = 'CardValidator';
+import { getEnvironmentConfig } from '../lib/env';
+import { CreditCardValidatorApiStack } from '../lib/stack';
 
 const app = new cdk.App();
-const regionContext: string | undefined = app.node.tryGetContext('region');
-const region: string = regionContext?.trim() || PRIMARY_REGION;
-const stageContext: string | undefined = app.node.tryGetContext('stage');
-const stage: string = stageContext?.trim() || 'dev';
+// Read stage from CDK context (defaults to 'dev')
+const stage = app.node.tryGetContext('stage') || 'dev';
+const envConfig = getEnvironmentConfig(stage);
 
-const lambdaTimeout = app.node.tryGetContext('lambdaTimeout') ?? 30;
-const lambdaMemory = app.node.tryGetContext('lambdaMemory') ?? 256;
-const ec2InstanceType = app.node.tryGetContext('ec2InstanceType') ?? 'T3.MICRO';
-const ec2Port = app.node.tryGetContext('ec2Port') ?? 80;
-const allowedOrigins = app.node.tryGetContext('allowedOrigins')?.split(',') ?? ['*'];
-const enableEc2 = app.node.tryGetContext('enableEc2') !== 'false';
-
-new Stack(app, `${stage}-${serviceName}`, {
+const stack = new CreditCardValidatorApiStack(app, `${stage}-CardValidator`, {
   env: {
-    region: region
+    account: envConfig.account,
+    region: envConfig.region
   },
-  serviceName: serviceName,
-  stage: stage,
-  lambdaTimeout: Number(lambdaTimeout),
-  lambdaMemory: Number(lambdaMemory),
-  ec2InstanceType: String(ec2InstanceType),
-  ec2Port: Number(ec2Port),
-  allowedOrigins: allowedOrigins,
-  enableEc2: enableEc2 !== false
+  serviceName: 'CardValidator',
+  stage: envConfig.stage,
+  port: envConfig.port,
+  ec2InstanceType: envConfig.instanceType
 });
+
+// Apply tags for resource organization and cost tracking
+cdk.Tags.of(stack).add('Environment', stage);
+cdk.Tags.of(stack).add('Service', 'CardValidator');
 

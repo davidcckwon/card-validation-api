@@ -1,11 +1,8 @@
 {
   "name": "card-validation-api",
   "version": "1.0.0",
-  "description": "Credit card validator API using Luhn algorithm",
-  "main": "dist/index.js",
-  "bin": {
-    "app": "bin/app.js"
-  },
+  "description": "card validator API using Luhn algorithm",
+  "main": "dist/src/app.js",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
@@ -13,15 +10,19 @@
     "test:watch": "jest --watch",
     "test:ci": "jest --ci --reporters=default --reporters=jest-junit",
     "lint": "eslint .",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
+    "start": "node dist/src/app.js",
+    "dev": "ts-node src/app.ts",
     "cdk": "cdk",
     "synth": "cdk synth",
     "bootstrap": "cdk bootstrap",
-    "deploy": "pnpm run build && pnpm run synth && cdk deploy"
+    "deploy": "pnpm run build && pnpm run synth && cdk deploy",
+    "deploy:dev": "pnpm run build && cdk deploy --context stage=dev",
+    "deploy:prod": "pnpm run build && cdk deploy --context stage=prod",
+    "deploy:diff": "cdk diff --context stage=dev",
+    "destroy:dev": "cdk destroy --context stage=dev",
+    "destroy:prod": "cdk destroy --context stage=prod"
   },
   "devDependencies": {
-    "@types/aws-lambda": "^8.10.157",
     "@types/express": "^4.17.21",
     "@types/jest": "^29.5.11",
     "@types/node": "20.11.14",
@@ -38,7 +39,6 @@
     "typescript": "~5.3.3"
   },
   "dependencies": {
-    "@vendia/serverless-express": "^4.12.6",
     "aws-cdk-lib": "^2.138.0",
     "constructs": "^10.3.0",
     "express": "^4.18.2",

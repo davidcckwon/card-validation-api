@@ -22,7 +22,7 @@
     "inlineSourceMap": true,
     "inlineSources": true
   },
-  "include": ["src/**/*", "lib/**/*", "bin/**/*", "test/**/*"],
+  "include": ["src/**/*", "lib/**/*", "bin/**/*", "test/**/*", "resources/**/*"],
   "exclude": ["node_modules", "dist", "cdk.out"]
 }
 
