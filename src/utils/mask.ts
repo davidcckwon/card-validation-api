@@ -1,7 +1,5 @@
 /**
- * Masks a card number, showing only the last 4 digits.
- * @param number The card number string.
- * @returns The masked string.
+ * Masks card number, showing only last 4 digits
  */
 export function maskCardNumber(number: string): string {
   if (number.length <= 4) return number;
