@@ -191,8 +191,8 @@ The deployment process:
 5. Launches EC2 instance with user data script
 6. Automatically pulls and runs the container
 
-> **Note:** This deployment demonstrates the core functionality. Production-ready 
-> infrastructure would require CI/CD pipelines, monitoring, secrets management, and 
+> **Note:** This deployment demonstrates the core functionality. Production-ready
+> infrastructure would require CI/CD pipelines, monitoring, secrets management, and
 > architectural decisions for scaling and cost optimization (e.g., Lambda vs EC2).
 
 ### Clean Up
