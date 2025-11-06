@@ -1,8 +1,7 @@
 import winston from 'winston';
 
 /**
- * Winston logger configured for structured JSON logging
- * JSON format enables easy parsing by log aggregation systems (CloudWatch, etc.)
+ * Structured JSON logger
  */
 export const logger = winston.createLogger({
   level: process.env.NODE_ENV === 'development' ? 'debug' : 'info',
@@ -10,10 +9,7 @@ export const logger = winston.createLogger({
     winston.format.timestamp(),
     winston.format.json()
   ),
-  transports: [
-    new winston.transports.Console({
-      stderrLevels: ['error']
-    })
-  ]
+  silent: process.env.NODE_ENV === 'test',
+  transports: [new winston.transports.Console({ stderrLevels: ['error'] })]
 });
 
