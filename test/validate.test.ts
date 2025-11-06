@@ -98,6 +98,24 @@ describe('POST /validate', () => {
 
     expect(response.body).toHaveProperty('error');
   });
+
+  test('should accept 12-digit card (minimum length)', async () => {
+    const response = await request(app)
+      .post('/validate')
+      .send({ number: '222100000009' })
+      .expect(200);
+
+    expect(response.body.valid).toBe(true);
+  });
+
+  test('should accept 19-digit card (maximum length)', async () => {
+    const response = await request(app)
+      .post('/validate')
+      .send({ number: '6011000990139424249' })
+      .expect(200);
+
+    expect(response.body.valid).toBe(true);
+  });
 });
 
 describe('Card Scheme Detection', () => {
@@ -140,7 +158,7 @@ describe('Card Scheme Detection', () => {
   test('should detect Discover', async () => {
     const response = await request(app)
       .post('/validate')
-      .send({ number: '6011000000000004' })
+      .send({ number: '6011111111111117' })
       .expect(200);
 
     expect(response.body.scheme).toBe('discover');
