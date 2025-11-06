@@ -1,29 +1,22 @@
 #!/usr/bin/env node
-/**
- * CDK App Entry Point
- * 
- * Usage:
- *   pnpm run deploy    # Deploy to AWS
- * 
- * Prerequisites:
- *   1. AWS credentials: aws configure
- *   2. CDK bootstrap: pnpm run bootstrap
- */
 import { App, Tags } from 'aws-cdk-lib';
 import 'source-map-support/register';
-import { getEnvironmentConfig } from '../lib/env';
-import { CardValidatorApiStack } from '../lib/stack';
+import { getEnvironmentConfig } from './env';
+import { CardValidatorApiStack } from './stack';
 
+// Initialize the CDK app
 const app = new App();
+
+// Load environment configuration (port, instance type, etc.)
 const envConfig = getEnvironmentConfig();
 
-// CDK resolves account/region from AWS credentials automatically when env is not specified
-// This allows VPC lookup to work during synthesis
+// Instantiate the main stack with environment props
 const stack = new CardValidatorApiStack(app, envConfig.serviceName, {
   serviceName: envConfig.serviceName,
   port: envConfig.port,
-  ec2InstanceType: envConfig.instanceType
+  instanceClass: envConfig.instanceClass,
+  instanceSize: envConfig.instanceSize
 });
 
+// Add metadata tags for easier tracking in AWS console
 Tags.of(stack).add('Service', envConfig.serviceName);
-
