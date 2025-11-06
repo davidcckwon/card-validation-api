@@ -169,8 +169,6 @@ pnpm run dev:stop
 
 > Once running, the API will be available at `http://localhost:3000`
 
-> Tests run in < 0.5s with silent logging (no console output during tests)
-
 ## Deploying to AWS
 
 ### Requirements
@@ -193,113 +191,9 @@ The deployment process:
 5. Launches EC2 instance with user data script
 6. Automatically pulls and runs the container
 
-### Deployment Process (Detailed)
-
-**1. Local Build Phase**
-
-```bash
-pnpm run build
-```
-
-- TypeScript compiler (`tsc`) compiles all `.ts` files to JavaScript in `dist/` folder
-- Compiles: `bin/app.ts`, `bin/stack.ts`, `bin/env.ts`, and `src/` files
-
-**2. CDK Synth Phase**
-
-```bash
-cdk deploy
-```
-
-- CDK loads `bin/app.ts` (entry point defined in `cdk.json`)
-- Calls `getEnvironmentConfig()` from `bin/env.ts`:
-  - `serviceName: 'card-validator-api'`
-  - `port: 3000`
-  - `instanceClass: 'T3'`
-  - `instanceSize: 'MICRO'`
-- Creates `CardValidatorApiStack` with these props
-- Synthesizes CloudFormation template to `cdk.out/`
-
-**3. Docker Image Build**
-
-- CDK reads your `Dockerfile`
-- Builds Docker image locally with platform `linux/amd64`
-- Creates ECR repository in your AWS account (if doesn't exist)
-- Authenticates to ECR using AWS credentials
-- Pushes Docker image to ECR
-- Image URI: `<account-id>.dkr.ecr.<region>.amazonaws.com/<repo-name>:<hash>`
-
-**4. CloudFormation Stack Creation**
-
-CDK deploys CloudFormation stack with these resources:
-
-**a. VPC & Networking:**
-
-- Creates VPC with 2 availability zones
-- Creates 2 public subnets (one per AZ)
-- Creates Internet Gateway
-- Creates route tables for public subnets
-- No NAT gateways (cost optimization)
-
-**b. IAM Role:**
-
-- Creates `card-validator-apiInstanceRole`
-- Attaches `AmazonSSMManagedInstanceCore` managed policy (for Session Manager)
-- Grants ECR pull permissions for the pushed image
-- Creates instance profile
-
-**c. Security Group:**
-
-- Creates `card-validator-apiSecurityGroup`
-- Adds ingress rule: Allow TCP port 3000 from `0.0.0.0/0`
-- Adds egress rule: Allow all outbound traffic
-
-**d. EC2 Instance:**
-
-- Launches t3.micro instance in public subnet
-- Uses ECS-optimized Amazon Linux 2023 AMI (has Docker pre-installed)
-- Assigns public IP address
-- Attaches IAM role and security group
-- Injects UserData script (bash):
-
-```bash
-#!/bin/bash
-# Add ec2-user to docker group
-usermod -aG docker ec2-user
-
-# ECR login
-aws ecr get-login-password --region <region> | \
-  docker login --username AWS --password-stdin <account>.dkr.ecr.<region>.amazonaws.com
-
-# Stop and remove old container if exists
-docker stop card-validator-api || true
-docker rm card-validator-api || true
-
-# Pull new image from ECR
-docker pull <ecr-image-uri>
-
-# Run container
-docker run -d \
-  --name card-validator-api \
-  -p 3000:3000 \
-  --restart unless-stopped \
-  <ecr-image-uri>
-```
-
-**5. Instance Initialization**
-
-- EC2 instance boots
-- UserData script executes automatically
-- Docker pulls image from ECR
-- Container starts and listens on port 3000
-- Health check: `http://<public-ip>:3000/health`
-
-**6. Stack Outputs**
-
-CDK displays:
-
-- `Ec2InstanceId` - EC2 instance ID
-- `Ec2PublicIp` - EC2 public IP address
-- `ApiEndpoint` - API endpoint URL
+> **Note:** This deployment demonstrates the core functionality. Production-ready 
+> infrastructure would require CI/CD pipelines, monitoring, secrets management, and 
+> architectural decisions for scaling and cost optimization (e.g., Lambda vs EC2).
 
 ### Clean Up
 
