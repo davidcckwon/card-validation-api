@@ -1,0 +1,17 @@
+services:
+  card-validator-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: development
+    working_dir: /app
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+    volumes:
+      - .:/app
+      - /app/node_modules
+    command: sh -c "pnpm install && pnpm exec nodemon --watch src --ext ts --exec ts-node src/app.ts"
+

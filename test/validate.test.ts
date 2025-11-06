@@ -39,8 +39,9 @@ describe('POST /validate', () => {
       .send({ number: '4111111111111112' })
       .expect(400);
 
-    expect(response.body).toHaveProperty('error');
-    expect(response.body.error).toContain('Luhn');
+    expect(response.body).toHaveProperty('valid');
+    expect(response.body.valid).toBe(false);
+    expect(response.body.message).toContain('Luhn');
   });
 
   test('should return 400 for too short card number', async () => {
@@ -68,7 +69,7 @@ describe('POST /validate', () => {
       .expect(400);
 
     expect(response.body).toHaveProperty('error');
-    expect(response.body.error).toContain('Missing or invalid');
+    expect(response.body.error).toContain('string field');
   });
 
   test('should return 400 for non-string number', async () => {

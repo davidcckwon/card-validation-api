@@ -1,193 +1,126 @@
-import * as cdk from 'aws-cdk-lib';
-import * as ec2 from 'aws-cdk-lib/aws-ec2';
-import * as iam from 'aws-cdk-lib/aws-iam';
-import * as s3assets from 'aws-cdk-lib/aws-s3-assets';
+import { CfnOutput, Stack, StackProps } from 'aws-cdk-lib';
+import { Instance, InstanceClass, InstanceSize, InstanceType, Peer, Port, SecurityGroup, SubnetType, UserData, Vpc } from 'aws-cdk-lib/aws-ec2';
+import { DockerImageAsset, Platform } from 'aws-cdk-lib/aws-ecr-assets';
+import { EcsOptimizedImage } from 'aws-cdk-lib/aws-ecs';
+import { ManagedPolicy, Role, ServicePrincipal } from 'aws-cdk-lib/aws-iam';
 import { Construct } from 'constructs';
 
-export interface CardValidatorStackProps extends cdk.StackProps {
+/**
+ * Defines the properties for the CardValidatorApiStack.
+ */
+export interface CardValidatorStackProps extends StackProps {
   readonly serviceName: string;
-  readonly stage: string;
   readonly port: number;
   readonly ec2InstanceType?: string;
 }
 
+
 /**
- * CDK stack for deploying card validator API to EC2
- * Creates: VPC, Security Group, IAM Role, EC2 Instance
+ * CDK Stack for deploying the Card Validator API to a single EC2 instance.
+ * Uses ECS-optimized AMI which includes Docker pre-installed.
+ * CDK builds the Docker image locally and pushes it to ECR.
+ * EC2 instance pulls the image from ECR and runs it.
  */
-export class CreditCardValidatorApiStack extends cdk.Stack {
-  readonly ec2Instance: ec2.Instance;
+export class CardValidatorApiStack extends Stack {
+  readonly ec2Instance: Instance;
 
-  /**
-   * Create IAM role for EC2 instance
-   * Grants SSM Session Manager + S3 read access for code deployment
-   */
-  private createInstanceRole(asset: s3assets.Asset): iam.Role {
-    const role = new iam.Role(this, 'InstanceRole', {
-      assumedBy: new iam.ServicePrincipal('ec2.amazonaws.com'),
-      managedPolicies: [
-        iam.ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore')
-      ]
-    });
-    asset.grantRead(role);
-    return role;
-  }
-
-  /**
-   * Create security group allowing HTTP traffic on configured port
-   * WARNING: Allows access from anywhere (0.0.0.0/0) - for demo purposes only
-   * Production: Restrict to specific IP ranges or use ALB
-   */
-  private createSecurityGroup(vpc: ec2.IVpc, stage: string, port: number): ec2.SecurityGroup {
-    const sg = new ec2.SecurityGroup(this, 'CardValidatorSG', {
-      vpc,
-      allowAllOutbound: true,
-      description: `Security group for ${stage} card validator API`
-    });
-    sg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(port), 'Allow HTTP traffic');
-    return sg;
-  }
-
-  /**
-   * Parse instance type string (e.g., "T3.MICRO") into CDK enum values
-   * Defaults to T3.MICRO for cost efficiency
-   */
-  private parseInstanceType(type?: string): ec2.InstanceType {
-    const instanceClass = type?.split('.')[0] ?? 'T3';
-    const instanceSize = type?.split('.')[1] ?? 'MICRO';
-    return ec2.InstanceType.of(
-      ec2.InstanceClass[instanceClass as keyof typeof ec2.InstanceClass] ?? ec2.InstanceClass.T3,
-      ec2.InstanceSize[instanceSize as keyof typeof ec2.InstanceSize] ?? ec2.InstanceSize.MICRO
-    );
-  }
-
-  /**
-   * Create systemd service for reliable process management
-   * Auto-restart on crash, proper logging, clean shutdown
-   */
-  private createSystemdService(port: number): string {
-    return [
-      '[Unit]',
-      'Description=Card Validation API',
-      'After=network.target',
-      '',
-      '[Service]',
-      'Type=simple',
-      'User=ec2-user',
-      'WorkingDirectory=/home/ec2-user/app',
-      `Environment="PORT=${port}"`,
-      'ExecStart=/usr/bin/node dist/src/app.js',
-      'Restart=always',
-      'RestartSec=10',
-      'StandardOutput=journal',
-      'StandardError=journal',
-      'SyslogIdentifier=card-api',
-      '',
-      '[Install]',
-      'WantedBy=multi-user.target'
-    ].join('\n');
-  }
-
-  /**
-   * Create user data script for EC2 bootstrap
-   * Installs Node.js, downloads built code from S3, starts systemd service
-   */
-  private createUserData(port: number, asset: s3assets.Asset): ec2.UserData {
-    const userData = ec2.UserData.forLinux();
-    const serviceDef = this.createSystemdService(port);
-    userData.addS3DownloadCommand({
-      bucket: asset.bucket,
-      bucketKey: asset.s3ObjectKey,
-      localFile: '/tmp/app.zip'
-    });
-    
-    userData.addCommands(
-      'yum update -y',
-      'yum install -y unzip',
-      'curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -',
-      'yum install -y nodejs',
-      'mkdir -p /home/ec2-user/app',
-      'unzip /tmp/app.zip -d /home/ec2-user/app',
-      'cd /home/ec2-user/app',
-      'npm install -g pnpm',
-      'chown -R ec2-user:ec2-user /home/ec2-user/app',
-      'sudo -u ec2-user pnpm install --prod',
-      `cat > /etc/systemd/system/card-api.service << 'EOF'\n${serviceDef}\nEOF`,
-      'systemctl daemon-reload',
-      'systemctl enable card-api',
-      'systemctl start card-api'
-    );
-    return userData;
-  }
-
-  /**
-   * Create CloudFormation outputs for easy access to deployed resources
-   */
-  private createOutputs(port: number): void {
-    new cdk.CfnOutput(this, 'Ec2InstanceId', {
-      value: this.ec2Instance.instanceId,
-      description: 'EC2 instance ID - SSH using SSM Session Manager'
-    });
-    new cdk.CfnOutput(this, 'Ec2PublicIp', {
-      value: this.ec2Instance.instancePublicIp,
-      description: 'EC2 public IP address'
-    });
-    new cdk.CfnOutput(this, 'ApiEndpoint', {
-      value: `http://${this.ec2Instance.instancePublicIp}:${port}`,
-      description: 'API endpoint URL'
-    });
-  }
-
-  /**
-   * Constructor: Create EC2-based card validator API deployment
-   * 
-   * Resources created:
-   * - EC2 instance (Amazon Linux 2023, T3.MICRO)
-   * - Security group (allows HTTP on port 3000)
-   * - IAM role (SSM access for debugging)
-   * 
-   * Uses default VPC (no additional networking setup required)
-   */
   constructor(scope: Construct, id: string, props: CardValidatorStackProps) {
     super(scope, id, props);
     if (!props) throw new Error('props unavailable');
 
-    // Bundle and upload built application to S3
-    const asset = new s3assets.Asset(this, 'AppAsset', {
-      path: '.',
-      exclude: [
-        'node_modules',
-        'cdk.out',
-        '.git',
-        'test',
-        '*.md',
-        '.gitignore',
-        'jest.config.js',
-        'tsconfig.json',
-        'bin',
-        'lib',
-        'src'
+    // --- 1. VPC and Instance Type Configuration ---
+    const vpc = new Vpc(this, 'CardValidatorVPC', {
+      maxAzs: 2,
+      natGateways: 0,
+      subnetConfiguration: [
+        {
+          cidrMask: 24,
+          name: 'public',
+          subnetType: SubnetType.PUBLIC,
+        },
+      ],
+    });
+    const [instanceClass, instanceSize] = (props.ec2InstanceType || 'T3.MICRO').split('.');
+    const instanceType = InstanceType.of(
+      InstanceClass[instanceClass as keyof typeof InstanceClass] || InstanceClass.T3,
+      InstanceSize[instanceSize as keyof typeof InstanceSize] || InstanceSize.MICRO
+    );
+
+    // --- 2. IAM Role (Permissions) ---
+    const role = new Role(this, 'InstanceRole', {
+      assumedBy: new ServicePrincipal('ec2.amazonaws.com'),
+      description: 'IAM role for the EC2 host, allowing SSM access and ECR pull',
+      managedPolicies: [
+        ManagedPolicy.fromAwsManagedPolicyName('AmazonSSMManagedInstanceCore')
       ]
     });
 
-    const vpc = ec2.Vpc.fromLookup(this, 'DefaultVPC', { isDefault: true }) as ec2.IVpc;
-    const role = this.createInstanceRole(asset);
-    const sg = this.createSecurityGroup(vpc, props.stage, props.port);
-    const userData = this.createUserData(props.port, asset);
-    const instanceType = this.parseInstanceType(props.ec2InstanceType);
+    // --- 3. Security Group (Networking) ---
+    const sg = new SecurityGroup(this, 'CardValidatorSG', {
+      vpc,
+      allowAllOutbound: true,
+      description: 'Security group for card validator API'
+    });
+    sg.addIngressRule(Peer.anyIpv4(), Port.tcp(props.port), `Allow HTTP traffic on port ${props.port}`);
 
-    // Create EC2 instance in public subnet with public IP
-    this.ec2Instance = new ec2.Instance(this, 'CardValidatorInstance', {
+    // --- 4. Container Image Asset (Docker Image) ---
+    // CDK builds the Docker image locally and pushes it to ECR
+    // Build for linux/amd64 platform to match EC2 instance architecture
+    const imageAsset = new DockerImageAsset(this, 'AppImage', {
+      directory: '.',
+      platform: Platform.LINUX_AMD64,
+    });
+
+    // Grant the EC2 role permission to pull the image from ECR
+    imageAsset.repository.grantPull(role);
+
+    // --- 5. User Data (Bootstrap Script) ---
+    const userData = UserData.forLinux({ shebang: '#!/bin/bash' });
+
+    // Add ec2-user to docker group (Docker is pre-installed on ECS-optimized AMI)
+    userData.addCommands('usermod -aG docker ec2-user');
+
+    // Login to ECR and pull the image
+    const imageUri = imageAsset.imageUri;
+    const accountId = this.account;
+    const region = this.region;
+    const ecrRegistry = `${accountId}.dkr.ecr.${region}.amazonaws.com`;
+
+    userData.addCommands(
+      `aws ecr get-login-password --region ${region} | docker login --username AWS --password-stdin ${ecrRegistry}`,
+      `docker stop ${props.serviceName} || true`,
+      `docker rm ${props.serviceName} || true`,
+      `docker pull ${imageUri}`,
+      `docker run -d --name ${props.serviceName} -p ${props.port}:3000 --restart unless-stopped ${imageUri}`
+    );
+
+    // --- 6. EC2 Instance Creation ---
+    // Use ECS-optimized AMI which includes Docker pre-installed
+    const ami = EcsOptimizedImage.amazonLinux2023();
+
+    this.ec2Instance = new Instance(this, 'CardValidatorInstance', {
       vpc,
       instanceType,
-      machineImage: ec2.MachineImage.latestAmazonLinux2023(),
-      vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+      machineImage: ami,
+      vpcSubnets: { subnetType: SubnetType.PUBLIC },
       role,
       securityGroup: sg,
       userData,
-      instanceName: `${props.stage}-card-validator`
+      instanceName: props.serviceName
     });
 
-    this.createOutputs(props.port);
+    // --- 7. Outputs ---
+    new CfnOutput(this, 'Ec2InstanceId', {
+      value: this.ec2Instance.instanceId,
+      description: 'EC2 instance ID - Use SSM Session Manager to connect.'
+    });
+    new CfnOutput(this, 'Ec2PublicIp', {
+      value: this.ec2Instance.instancePublicIp,
+      description: 'EC2 public IP address'
+    });
+    new CfnOutput(this, 'ApiEndpoint', {
+      value: `http://${this.ec2Instance.instancePublicIp}:${props.port}`,
+      description: 'API endpoint URL (access via public IP on host port)'
+    });
   }
 }
